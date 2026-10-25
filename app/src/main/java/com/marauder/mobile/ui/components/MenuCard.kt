@@ -13,7 +13,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,7 +30,12 @@ import com.marauder.mobile.data.MenuItem
 import com.marauder.mobile.ui.theme.Danger
 
 @Composable
-fun MenuCard(item: MenuItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun MenuCard(
+    item: MenuItem,
+    onClick: () -> Unit,
+    onInfo: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
     val accent = accentColor(item.accent)
     val navigates = item.action !is MenuAction.Send
     val trailing = if (navigates) Icons.Filled.ChevronRight else Icons.Filled.PlayArrow
@@ -85,6 +92,16 @@ fun MenuCard(item: MenuItem, onClick: () -> Unit, modifier: Modifier = Modifier)
                     tint = Danger,
                     modifier = Modifier.size(18.dp).padding(end = 4.dp),
                 )
+            }
+            if (onInfo != null) {
+                IconButton(onClick = onInfo) {
+                    Icon(
+                        Icons.Outlined.ErrorOutline,
+                        contentDescription = "Help",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
             Icon(
                 trailing,

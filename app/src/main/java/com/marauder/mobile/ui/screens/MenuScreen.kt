@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.marauder.mobile.data.Catalog
 import com.marauder.mobile.data.MenuAction
+import com.marauder.mobile.data.MenuHelp
 import com.marauder.mobile.data.MenuItem
 import com.marauder.mobile.ui.components.LogoHeader
 import com.marauder.mobile.ui.components.MenuCard
@@ -72,6 +73,7 @@ fun MenuScreen(
     val connected = connStatus == UsbSerialManager.Status.CONNECTED
 
     var pendingConfirm by remember { mutableStateOf<MenuItem?>(null) }
+    var helpItem by remember { mutableStateOf<MenuItem?>(null) }
 
     Scaffold(
         topBar = {
@@ -151,6 +153,7 @@ fun MenuScreen(
                             onItemClick(item)
                         }
                     },
+                    onInfo = if (MenuHelp.forItem(item) != null) ({ helpItem = item }) else null,
                 )
             }
 
@@ -184,6 +187,31 @@ fun MenuScreen(
                 TextButton(onClick = { pendingConfirm = null }) { Text("Cancel") }
             },
         )
+    }
+
+    helpItem?.let { item ->
+        MenuHelp.forItem(item)?.let { help ->
+            AlertDialog(
+                onDismissRequest = { helpItem = null },
+                title = { Text(item.title) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("用途", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Text(help.purpose, style = MaterialTheme.typography.bodyMedium)
+                        if (help.usage.isNotEmpty()) {
+                            Text("用法", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                            Text(help.usage, style = MaterialTheme.typography.bodyMedium)
+                        }
+                        if (item.dangerous) {
+                            Text("仅限在你有权测试的设备和网络上使用。", style = MaterialTheme.typography.bodyMedium, color = Danger)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { helpItem = null }) { Text("知道了") }
+                },
+            )
+        }
     }
 }
 
