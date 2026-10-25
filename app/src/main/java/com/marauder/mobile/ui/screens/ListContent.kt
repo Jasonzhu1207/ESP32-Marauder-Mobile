@@ -25,20 +25,27 @@ import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.marauder.mobile.data.ListType
@@ -65,6 +72,7 @@ fun ListContent(
 ) {
     val loading by vm.listLoading.collectAsState()
     val isLoading = loading == type
+    var connectTarget by remember { mutableStateOf<DeviceMessage.Ap?>(null) }
 
     fun sendAndRefresh(cmd: String) {
         vm.runCommand(cmd)
@@ -80,7 +88,11 @@ fun ListContent(
                 ListType.ACCESS_POINTS -> {
                     val data by vm.aps.collectAsState()
                     ListBody(data.isEmpty(), isLoading, "No access points", "Run a scan, then refresh.") {
-                        items(data, key = { it.index }) { ApRow(it) { sendAndRefresh("select -a ${it.index}") } }
+                        items(data, key = { it.index }) { ap ->
+                            ApRow(ap, onConnect = if (ap.sec != 0) ({ connectTarget = ap }) else null) {
+                                sendAndRefresh("select -a ${ap.index}")
+                            }
+                        }
                     }
                 }
                 ListType.STATIONS -> {
@@ -114,6 +126,16 @@ fun ListContent(
                     }
                 }
             }
+        }
+        connectTarget?.let { ap ->
+            ConnectDialog(
+                ap = ap,
+                onDismiss = { connectTarget = null },
+                onConnect = { password ->
+                    vm.runCommand("join -a ${ap.index} -p $password")
+                    connectTarget = null
+                },
+            )
         }
     }
 }
@@ -190,7 +212,12 @@ private fun ActionChip(label: String, icon: ImageVector, tint: Color, onClick: (
 // --- Rows --------------------------------------------------------------------
 
 @Composable
-private fun RowCard(selected: Boolean, onToggle: (() -> Unit)?, content: @Composable () -> Unit) {
+private fun RowCard(
+    selected: Boolean,
+    onToggle: (() -> Unit)?,
+    onConnect: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface,
@@ -199,12 +226,62 @@ private fun RowCard(selected: Boolean, onToggle: (() -> Unit)?, content: @Compos
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) { content() }
+            if (onConnect != null) {
+                Spacer(Modifier.width(8.dp))
+                ConnectPill(onConnect)
+            }
             if (onToggle != null) {
                 Spacer(Modifier.width(8.dp))
                 SelectToggle(selected, onToggle)
             }
         }
     }
+}
+
+@Composable
+private fun ConnectPill(onClick: () -> Unit) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(8.dp), color = CatWifi.copy(alpha = 0.15f)) {
+        Text(
+            "CONNECT",
+            style = MaterialTheme.typography.labelSmall,
+            color = CatWifi,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+        )
+    }
+}
+
+@Composable
+private fun ConnectDialog(ap: DeviceMessage.Ap, onDismiss: () -> Unit, onConnect: (String) -> Unit) {
+    var password by remember { mutableStateOf("") }
+    val hasSpace = password.any { it.isWhitespace() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Join network") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(ap.essid.ifBlank { "(hidden)" }, style = MaterialTheme.typography.titleMedium)
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    isError = hasSpace,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (hasSpace) {
+                    Text("Spaces are not supported", style = MaterialTheme.typography.bodySmall, color = Danger)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConnect(password) }, enabled = password.isNotEmpty() && !hasSpace) {
+                Text("Connect")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
@@ -226,8 +303,8 @@ private fun SelectToggle(selected: Boolean, onToggle: () -> Unit) {
 }
 
 @Composable
-private fun ApRow(ap: DeviceMessage.Ap, onToggle: () -> Unit) {
-    RowCard(selected = ap.selected, onToggle = onToggle) {
+private fun ApRow(ap: DeviceMessage.Ap, onConnect: (() -> Unit)?, onToggle: () -> Unit) {
+    RowCard(selected = ap.selected, onToggle = onToggle, onConnect = onConnect) {
         Column {
             Text(
                 ap.essid.ifBlank { "(hidden)" },
