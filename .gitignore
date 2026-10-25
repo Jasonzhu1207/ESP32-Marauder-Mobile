@@ -31,3 +31,6 @@ captures/
 
 # Static-analysis cache (Snyk / DeepCode)
 .dccache
+
+# Python bytecode (i18n scripts)
+__pycache__/
